@@ -1,0 +1,43 @@
+{
+  "name": "swap-mobile-wallet-api",
+  "version": "1.0.0",
+  "description": "Workaround to the React Native JS VM environment, which doesn't allow you to use the Node.js environment that it's packaged in. myswap-core-js should work here, as it is a pure Node.js environment. You send an API request ehre and the data comes back to the user in JSON (this is a REST API).",
+  "main": "init.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\"",
+    "start": "nodemon --exec babel-node src/init.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/one-and-only/swap-mobile-wallet-api.git"
+  },
+  "keywords": [
+    "swap",
+    "xwp",
+    "crypto",
+    "cryptocurrency",
+    "privacy",
+    "api",
+    "mobilewallet",
+    "ioswallet",
+    "androidwallet",
+    "mobilexwp",
+    "mobileswap"
+  ],
+  "author": "Antonios P. (@Revvz)",
+  "license": "SEE LICENSE IN LICENSE",
+  "bugs": {
+    "url": "https://github.com/one-and-only/swap-mobile-wallet-api/issues"
+  },
+  "homepage": "https://github.com/one-and-only/swap-mobile-wallet-api#readme",
+  "devDependencies": {
+    "@babel/core": "^7.14.6",
+    "@babel/node": "^7.14.7",
+    "@babel/preset-env": "^7.14.7",
+    "nodemon": "^2.0.7"
+  },
+  "dependencies": {
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1"
+  }
+}
