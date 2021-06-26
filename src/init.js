@@ -8,16 +8,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const mymonero = require("./myswap-core-js-2.0.0/index");
+
 app.get('/', (req, res) => {
   res.send('This API doesn\'t have a frontend, but at least you\'re here 😄');
 });
 
 app.get('/create_wallet', (req, res) => {
 
-  const mymonero = require("./myswap-core-js-2.0.0/index");
-  async function foo()
+  async function create_wallet()
   {
     const monero_utils = await mymonero.monero_utils_promise;
+
     const nettype = mymonero.nettype_utils.network_type.MAINNET; // only use mainnet for now
     const new_wallet = monero_utils.newly_created_wallet("english", nettype);
     const mnemonic = new_wallet.mnemonic_string;
@@ -28,7 +30,7 @@ app.get('/create_wallet', (req, res) => {
     const walletAddress = new_wallet.address_string;
     return `Mnemonic: ${mnemonic}<br>Public Spend Key: ${pub_spendKey}<br>Public View Key: ${pub_viewKey}<br>Private Spend Key: ${priv_spendKey}<br>Private View Key: ${priv_viewKey}<br>Wallet Address: ${walletAddress}`;
   }
-  foo().then((response) => {
+  create_wallet().then((response) => {
     res.send('You choose to create a wallet. Good choice 👍<br><br>' + response);
   }).catch((error) => {
     res.send(`An unknown error occured :(:\n\n${error}`)
