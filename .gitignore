@@ -1,3 +1,6 @@
+# Useless Mac files
+**.DS_Store
+
 # Logs
 logs
 *.log
