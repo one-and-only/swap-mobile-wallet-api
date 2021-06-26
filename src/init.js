@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import cors from 'cors';
-import express from 'express';
+import express, { response } from 'express';
 
 const app = express();
 
@@ -22,18 +22,26 @@ app.get('/create_wallet', (req, res) => {
 
     const nettype = mymonero.nettype_utils.network_type.MAINNET; // only use mainnet for now
     const new_wallet = monero_utils.newly_created_wallet("english", nettype);
-    const mnemonic = new_wallet.mnemonic_string;
-    const pub_spendKey = new_wallet.pub_spendKey_string;
-    const pub_viewKey = new_wallet.pub_viewKey_string;
-    const priv_spendKey = new_wallet.sec_spendKey_string;
-    const priv_viewKey = new_wallet.sec_viewKey_string;
-    const walletAddress = new_wallet.address_string;
-    return `Mnemonic: ${mnemonic}<br>Public Spend Key: ${pub_spendKey}<br>Public View Key: ${pub_viewKey}<br>Private Spend Key: ${priv_spendKey}<br>Private View Key: ${priv_viewKey}<br>Wallet Address: ${walletAddress}`;
+
+    const wallet = {
+      mnemonic: new_wallet.mnemonic_string,
+      wallet_address: new_wallet.address_string,
+      public_spendKey: new_wallet.pub_spendKey_string,
+      public_viewKey: new_wallet.pub_viewKey_string,
+      private_spendKey: new_wallet.sec_spendKey_string,
+      private_viewKey: new_wallet.sec_viewKey_string,
+    };
+
+    return JSON.stringify(wallet);
   }
-  create_wallet().then((response) => {
-    res.send('You choose to create a wallet. Good choice 👍<br><br>' + response);
+  create_wallet().then((wallet) => {
+    res.send(wallet);
   }).catch((error) => {
-    res.send(`An unknown error occured :(:\n\n${error}`)
+    res_send = {
+      status: "error",
+      error: error,
+    }
+    res.send(JSON.stringify(res_send));
   });
 
 });
