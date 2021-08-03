@@ -20,14 +20,22 @@ app.get('/create_wallet', (req, res) => {
     const wallet = {
       mnemonic: new_wallet.mnemonicString,
       wallet_address: new_wallet.keys.public_addr,
-      spendKey: new_wallet.keys.spend.sec,
-      viewKey: new_wallet.keys.view.sec,
+      spendKey_pub: new_wallet.keys.spend.pub,
+      viewKey_pub: new_wallet.keys.view.pub,
+      spendKey_sec: new_wallet.keys.spend.sec,
+      viewKey_sec: new_wallet.keys.view.sec,
     };
     res.send(JSON.stringify(wallet));
 });
 
 app.post('/send_funds', (req, res) => {
-  res.send("you choose to send funds. Good choice 👍");
+  //used for sending a response back
+  var response = {
+    status: "unfinished",
+    reason: null,
+    tx: null,
+  }
+  res.send(response);
 });
 
 app.get('/get_recent_transactions', (req, res) => {
