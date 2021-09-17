@@ -1,0 +1,3 @@
+[submodule "src/myswap-core-js"]
+	path = src/myswap-core-js
+	url = https://github.com/one-and-only/myswap-core-js.git

@@ -1,12 +1,12 @@
 {
   "name": "swap-mobile-wallet-api",
   "version": "1.0.0",
-  "description": "Workaround to the React Native JS VM environment, which doesn't allow you to use the Node.js environment that it's packaged in. myswap-core-js should work here, as it is a pure Node.js environment. You send an API request ehre and the data comes back to the user in JSON (this is a REST API).",
+  "description": "Workaround to the React Native JS VM environment, which doesn't allow you to use the Node.js core modules. This is a REST API.",
   "main": "init.js",
   "scripts": {
     "test": "echo \"Error: no test specified\"",
-    "start": "nodemon --exec babel-node src/init.js",
-    "lint": "eslint --init"
+    "start": "nodemon --trace-uncaught --exec babel-node src/init.js",
+    "lint": "eslint"
   },
   "repository": {
     "type": "git",
