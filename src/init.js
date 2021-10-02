@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
-import { nettype_utils, monero_utils_promise, monero_sendingFunds_utils } from "./myswap-core-js";
+import { monero_utils_promise, monero_amount_format_utils } from "./myswap-core-js";
+const fetch = require('node-fetch');
 
 const app = express();
 
@@ -14,126 +15,143 @@ app.get('/', (req, res) => {
 });
 
 app.get('/create_wallet', (req, res) => {
-    monero_utils_promise.then(monero_utils => {
-      const new_wallet =  monero_utils.newly_created_wallet( "en", nettype_utils.network_type.MAINNET);
-      res.json({
-        mnemonic: new_wallet.mnemonic_string,
-        wallet_address: new_wallet.address_string,
-        spendKey_pub: new_wallet.pub_spendKey_string,
-        viewKey_pub: new_wallet.pub_viewKey_string,
-        spendKey_sec: new_wallet.sec_spendKey_string,
-        viewKey_sec: new_wallet.sec_viewKey_string,
-      });
-    })
+  monero_utils_promise.then(monero_utils => {
+    const new_wallet = monero_utils.newly_created_wallet("en", req.query.nettype ? req.query.nettype : 0);
+    res.json({
+      mnemonic: new_wallet.mnemonic_string,
+      wallet_address: new_wallet.address_string,
+      spendKey_pub: new_wallet.pub_spendKey_string,
+      viewKey_pub: new_wallet.pub_viewKey_string,
+      spendKey_sec: new_wallet.sec_spendKey_string,
+      viewKey_sec: new_wallet.sec_viewKey_string,
+    });
+  })
 });
 
 app.post('/send_funds', (req, res) => {
-  //used for sending a response back
-  let response = {
-    status: "unfinished",
-    reason: null,
-    tx: null,
-  };
-  async function getUnspentOutputs(params, cb) {
-    console.log(params);
-    return new Promise((resolve, reject) => {
-      var data = '{"address": "' + params.address + '", "view_key": "' + params.view_key + '","amount":"' + params.amount + '","mixin":10,"use_dust":' + params.use_dust + ',"dust_threshold":"' + params.dust_threshold + '"}';
-      var outputs;
-      var per_byte_fee;
-      fetch(
-        "https://wallet.getswap.eu/api/get_unspent_outs",
-        {
-          method: "POST",
-          headers: {
+  function getUnspentOutputs(parameters, fn) {
+    const data = '{"address": "' + parameters.address + '", "view_key": "' + parameters.view_key + '","amount":"' + parameters.amount + '","mixin":10,"use_dust":' + parameters.use_dust + ',"dust_threshold":"' + parameters.dust_threshold + '"}';
+    fetch("https://wallet.getswap.eu/api/get_unspent_outs",
+      {
+        method: "POST",
+        headers: {
           "Content-Type": "application/json"
-          },
-          body: data
-        }
-        ).then(response => response.json())
-        .then((jsonResponse) => {
-          console.log("API call finished");
-          outputs = jsonResponse.outputs;
-          per_byte_fee = jsonResponse.per_byte_fee;
-          resolve({
-          outputs: outputs,
-          per_byte_fee: per_byte_fee
-        });
-        }).catch(err => reject(`Error: ${err}`));
-    });
-  }
-  async function getRandomOutputs(params, cb) {
-    console.log(params);
-  }
-  async function submitRawTx(params, cb) {
-    console.log(params);
+        },
+        body: data
+      }
+    ).then(response => response.json().then((jsonResponse) => {
+      fn(null, { outputs: jsonResponse.outputs, per_byte_fee: jsonResponse.per_byte_fee });
+    }).catch(err => fn(err && err.Error ? err.Error : "" + err)));
+    return {
+      abort: function () {
+        console.warn("TODO: abort!")
+      }
+    }
   }
 
-  async function sendFunds() {
-    monero_utils_promise.async__send_funds({
+  function getRandomOutputs(parameters, fn) {
+    const body = '{"amounts": ["0"],"count": 11}';
+    fetch('https://wallet.getswap.eu/api/get_random_outs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: body
+    }).then(response => response.json().then(jsonResponse => {
+      fn(null, { amount_outs: jsonResponse.amount_outs })
+    })).catch(err => fn(err && err.Error ? err.Error : "" + err));
+    return {
+      abort: function () {
+        console.warn("TODO: abort!")
+      }
+    }
+  }
+
+  function submitRawTransaction(parameters, fn) {
+    fetch('https://wallet.getswap.eu/api/submit_raw_tx', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ tx: parameters.tx })
+    }).then(response => response.json().then(jsonResponse => {
+      switch (jsonResponse) {
+        case null:
+          fn(null, {});
+          break;
+        default:
+          fn(jsonResponse);
+          break;
+      }
+    })).catch(err => fn(err && err.Error ? err.Error : "" + err));
+    return {
+      abort: function () {
+        console.warn("TODO: abort!")
+      }
+    }
+  }
+
+  let sending_amount;
+  try {
+    sending_amount = (monero_amount_format_utils.parseMoney(req.body.sending_amount)).toString();
+  } catch (e) {
+    throw new Error(`Couldn't parse amount ${req.body.sending_amount}: ${e}`)
+  }
+  let coreBridge_instance;
+  try {
+    coreBridge_instance = require('./myswap-core-js/monero_utils/MyMoneroCoreBridge')({ asmjs: undefined });
+  } catch (e) {
+    console.error(e);
+    return;
+  }
+  coreBridge_instance.then(coreBridge => {
+    coreBridge.async__send_funds({
       is_sweeping: req.body.is_sweeping,
-      payment_id_string: req.body.payment_id, // may be nil or undefined
-      sending_amount: req.body.is_sweeping ? 0 : req.body.sending_amount, // sending amount
-      from_address_string: req.body.from_address,
-      sec_viewKey_string: req.body.viewKey,
+      payment_id_string: req.body.payment_id_string,
+      sending_amount: req.body.is_sweeping ? 0 : sending_amount,
+      from_address_string: req.body.from_address_string,
+      sec_viewKey_string: req.body.view_key,
       sec_spendKey_string: req.body.spendKey_sec,
       pub_spendKey_string: req.body.spendKey_pub,
-      to_address_string: req.body.to_address,
+      to_address_string: req.body.to_address_string,
       priority: req.body.priority,
-      unlock_time: 0, // unlock_time
+      unlock_time: 0,
       nettype: req.body.nettype,
-      get_unspent_outs_fn: function(req_params, cb)
-      {
-        getUnspentOutputs(req_params, function(err_msg, res)
-        {
+      get_unspent_outs_fn: function (req_params, cb) {
+        getUnspentOutputs(req_params, function (err_msg, res) {
           cb(err_msg, res);
         });
       },
-      get_random_outs_fn: function(req_params, cb)
-      {
-        getRandomOutputs(req_params, function(err_msg, res)
-        {
+      get_random_outs_fn: function (req_params, cb) {
+        getRandomOutputs(req_params, function (err_msg, res) {
           cb(err_msg, res);
         });
       },
-      submit_raw_tx_fn: function(req_params, cb)
-      {
-        submitRawTx(req_params, function(err_msg, res)
-        {
+      submit_raw_tx_fn: function (req_params, cb) {
+        submitRawTransaction(req_params, function (err_msg, res) {
           cb(err_msg, res);
         });
       },
-      //
-      status_update_fn: function(params)
-      {
-        console.log("> Send funds step " + params.code + ": " + monero_sendingFunds_utils.SendFunds_ProcessStep_MessageSuffix[params.code])
+      status_update_fn: function (params) {
+        //twirling our fingers
       },
-      error_fn: function(params)
-      {
-        response = {
-          status: "error",
-          reason: params.err_msg,
-          tx: null,
-        };
-        res.json(response);
+      error_fn: function (params) {
+        res.json({
+          success: false,
+          reason: "An unkown error occured while sending XWP",
+          err_msg: params.err_msg
+        });
       },
-      success_fn: function(params)
-      {
-        console.log("sentAmount ", params.total_sent)
-        console.log("final__payment_id ", params.final_payment_id)
-        console.log("tx_hash ", params.tx_hash)
-        console.log("tx_fee ", params.used_fee)
-        console.log("tx_key ", params.tx_key)
-        console.log("tx_pub_key ", params.tx_pub_key)
-        response = {
-          status: "success",
-          reason: null,
-          tx: params.tx_hash,
-        };
-        res.json(response);
+      success_fn: function (params) {
+        const formattedFee = (monero_amount_format_utils.parseMoney(params.used_fee)).toString();
+        res.json({
+          used_fee: formattedFee,
+          tx_hash: params.tx_hash,
+        });
       }
     });
-  }
-  sendFunds();
+  });
+
 });
 
 app.get('/get_recent_transactions', (req, res) => {
