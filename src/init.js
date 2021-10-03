@@ -145,6 +145,7 @@ app.post('/send_funds', (req, res) => {
       success_fn: function (params) {
         const formattedFee = (monero_amount_format_utils.parseMoney(params.used_fee)).toString();
         res.json({
+          success: true,
           used_fee: formattedFee,
           tx_hash: params.tx_hash,
         });
