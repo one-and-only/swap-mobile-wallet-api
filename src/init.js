@@ -155,6 +155,15 @@ app.post('/send_funds', (req, res) => {
 
 });
 
+app.post('/login_with_mnemonic', (req, res) => {
+  monero_utils_promise.then(monero_utils => {
+    res.json(monero_utils.seed_and_keys_from_mnemonic(
+      req.body.mnemonic,
+      req.body.nettype,
+    ));
+  });
+});
+
 app.get('/get_recent_transactions', (req, res) => {
   res.send('you choose to get recent transactions. Good choice 👍');
 });
