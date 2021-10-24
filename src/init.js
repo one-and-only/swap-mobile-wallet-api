@@ -157,10 +157,18 @@ app.post('/send_funds', (req, res) => {
 
 app.post('/login_with_mnemonic', (req, res) => {
   monero_utils_promise.then(monero_utils => {
-    res.json(monero_utils.seed_and_keys_from_mnemonic(
-      req.body.mnemonic,
-      req.body.nettype,
-    ));
+    try {
+      const walletData = monero_utils.seed_and_keys_from_mnemonic(req.body.mnemonic, req.body.nettype);
+      res.json({
+        success: true,
+        wallet: walletData,
+      })
+    } catch (e) {
+      res.json({
+        success: false,
+        err_msg: e
+      });
+    }
   });
 });
 
