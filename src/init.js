@@ -9,6 +9,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.disable('x-powered-by');
 
 app.get('/', (req, res) => {
   res.send('This API doesn\'t have a frontend, but at least you\'re here 😄');
@@ -136,7 +137,7 @@ app.post('/send_funds', (req, res) => {
         //twirling our fingers
       },
       error_fn: function (params) {
-        res.json({
+        res.status(500).json({
           success: false,
           reason: "An unkown error occured while sending XWP",
           err_msg: params.err_msg
@@ -164,7 +165,7 @@ app.post('/login_with_mnemonic', (req, res) => {
         wallet: walletData,
       })
     } catch (e) {
-      res.json({
+      res.status(400).json({
         success: false,
         err_msg: e
       });
