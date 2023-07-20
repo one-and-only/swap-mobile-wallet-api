@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Workaround to the React Native JS VM environment, which doesn't allow you to use the Node.js core modules. This is a REST API.",
   "main": "init.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\"",
     "start": "nodemon --trace-uncaught --exec babel-node src/init.js",

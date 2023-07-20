@@ -1,15 +1,20 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
-import { monero_utils_promise, monero_amount_format_utils } from "./myswap-core-js";
-const fetch = require('node-fetch');
+import monero_utils_promise from "./myswap-core-js/monero_utils/MyMoneroCoreBridge.js";
+import monero_amount_format_utils from "./myswap-core-js/monero_utils/monero_amount_format_utils.js"
+import fetch from "node-fetch";
+
+const monero_utils = await monero_utils_promise();
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 app.disable('x-powered-by');
+app.disable('etag');
 
 app.get('/', (req, res) => {
   res.send('This API doesn\'t have a frontend, but at least you\'re here 😄');
