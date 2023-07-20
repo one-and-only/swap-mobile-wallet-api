@@ -1,4 +1,4 @@
-import {} from 'dotenv/config';
+import { } from 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 
@@ -159,18 +159,34 @@ app.post('/send_funds', (req, res) => {
   });
 });
 
-app.post('/login_with_mnemonic', (req, res) => {
+app.post('/restore_from_mnemonic', (req, res) => {
+  if (!req.body.mnemonic) {
+    res.status(400).json({
+      success: false
+    });
+    return;
+  }
+
   try {
-    const walletData = monero_utils.seed_and_keys_from_mnemonic(req.body.mnemonic, req.body.nettype);
+    const walletData = monero_utils.seed_and_keys_from_mnemonic(req.body.mnemonic, 0);
     res.json({
       success: true,
-      wallet: walletData,
+      public_view_key: walletData.pub_viewKey_string,
+      public_spend_key: walletData.pub_spendKey_string,
+      private_view_key: walletData.sec_viewKey_string,
+      private_spend_key: walletData.sec_spendKey_string,
+      address: walletData.address_string
     })
   } catch (e) {
-    res.status(400).json({
-      success: false,
-      err_msg: e
-    });
+    if (e.includes("Please") || e.includes("Invalid"))
+      res.status(200).json({
+        success: false
+      });
+    else
+      res.status(500).json({
+        success: false,
+        err_msg: e
+      });
   }
 });
 
