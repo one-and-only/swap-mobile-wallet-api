@@ -113,16 +113,16 @@ app.post('/send_funds', (req, res) => {
   coreBridge_instance.then(coreBridge => {
     coreBridge.async__send_funds({
       is_sweeping: req.body.is_sweeping,
-      payment_id_string: req.body.payment_id_string,
-      sending_amount: req.body.is_sweeping ? 0 : sending_amount,
+      payment_id_string: "", // NOTE: payment IDs are deprecated
+      sending_amount: req.body.is_sweeping ? 0 : sending_amount, // weird, but that's how monero apps do it
       from_address_string: req.body.from_address_string,
       sec_viewKey_string: req.body.view_key,
       sec_spendKey_string: req.body.spendKey_sec,
       pub_spendKey_string: req.body.spendKey_pub,
       to_address_string: req.body.to_address_string,
-      priority: req.body.priority,
+      priority: 1,
       unlock_time: 0,
-      nettype: req.body.nettype,
+      nettype: 0,
       get_unspent_outs_fn: function (req_params, cb) {
         getUnspentOutputs(req_params, function (err_msg, res) {
           cb(err_msg, res);
