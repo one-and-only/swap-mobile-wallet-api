@@ -101,11 +101,10 @@ app.post('/send_funds', (req, res) => {
 
   let sending_amount;
   try {
-    sending_amount = (monero_amount_format_utils.parseMoney(req.body.sending_amount)).toString();
+    sending_amount = (monero_amount_format_utils.parseMoney(req.body.amount)).toString();
   } catch (e) {
-    // throw new Error(`Couldn't parse amount ${req.body.sending_amount}: ${e}`);
     res.status(400).json({
-      error: `Couldn't parse amount ${req.body.sending_amount}: ${e}`,
+      error: `Couldn't parse amount ${req.body.amount}: ${e}`,
       success: false
     });
     return;
@@ -115,11 +114,11 @@ app.post('/send_funds', (req, res) => {
     is_sweeping: req.body.is_sweeping,
     payment_id_string: "", // NOTE: payment IDs are deprecated
     sending_amount: req.body.is_sweeping ? 0 : sending_amount, // weird, but that's how monero apps do it
-    from_address_string: req.body.from_address_string,
-    sec_viewKey_string: req.body.view_key,
-    sec_spendKey_string: req.body.spendKey_sec,
-    pub_spendKey_string: req.body.spendKey_pub,
-    to_address_string: req.body.to_address_string,
+    from_address_string: req.body.from_address,
+    sec_viewKey_string: req.body.private_view_key,
+    sec_spendKey_string: req.body.private_spend_key,
+    pub_spendKey_string: req.body.public_spend_key,
+    to_address_string: req.body.to_address,
     priority: 1,
     unlock_time: 0,
     nettype: 0,
@@ -144,8 +143,7 @@ app.post('/send_funds', (req, res) => {
     error_fn: function (params) {
       res.status(500).json({
         success: false,
-        reason: "An unkown error occured while sending XWP",
-        err_msg: params.err_msg
+        error: `An unkown error occured while sending XWP: ${params.err_msg}`,
       });
     },
     success_fn: function (params) {
