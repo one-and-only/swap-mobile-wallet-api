@@ -76,12 +76,12 @@ app.post('/send_funds', (req, res) => {
   }
 
   function submitRawTransaction(parameters, fn) {
-    fetch('https://wallet.getswap.eu/api/submit_raw_tx', {
+    fetch('http://autonode.getswap.eu:19952/submit_raw_transaction', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ tx: parameters.tx })
+      body: JSON.stringify({ tx_as_hex: parameters.tx })
     }).then(response => response.json().then(jsonResponse => {
       switch (jsonResponse) {
         case null:
