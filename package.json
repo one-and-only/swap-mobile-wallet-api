@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\"",
-    "start": "nodemon --trace-uncaught --exec babel-node src/init.js",
+    "dev": "nodemon --trace-uncaught --exec babel-node src/init.js",
+    "start": "node src/init.js",
     "lint": "eslint"
   },
   "repository": {
