@@ -178,8 +178,34 @@ app.post('/login_with_mnemonic', (req, res) => {
   });
 });
 
-app.get('/get_recent_transactions', (req, res) => {
-  res.send('you choose to get recent transactions. Good choice 👍');
+app.post('/restore_from_keys', (req, res) => {
+  if (!req.body.address || !req.body.private_view_key || !req.body.private_spend_key) {
+    res.status(400).json({
+      success: false
+    });
+    return;
+  }
+
+  try {
+    const walletData = monero_utils.validate_components_for_login(req.body.address, req.body.private_view_key, req.body.private_spend_key, "", 0);
+  
+    res.status(200).json({
+      public_view_key: walletData.pub_viewKey_string,
+      public_spend_key: walletData.pub_spendKey_string,
+      success: true
+    });
+  } catch (e) {
+    if (e.includes("Address doesn't match")) {
+      res.status(200).json({
+        success: false
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: "Unknown error occurred restoring wallet from private keys"
+      });
+    }
+  }
 });
 
 app.listen(process.env.PORT, () =>
