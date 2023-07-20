@@ -25,14 +25,14 @@ app.get('/', (req, res) => {
 });
 
 app.get('/create_wallet', (req, res) => {
-  const new_wallet = monero_utils.newly_created_wallet("en", req.query.nettype ? req.query.nettype : 0);
+  const new_wallet = monero_utils.newly_created_wallet("en", 0);
   res.json({
     mnemonic: new_wallet.mnemonic_string,
     wallet_address: new_wallet.address_string,
-    spendKey_pub: new_wallet.pub_spendKey_string,
-    viewKey_pub: new_wallet.pub_viewKey_string,
-    spendKey_sec: new_wallet.sec_spendKey_string,
-    viewKey_sec: new_wallet.sec_viewKey_string,
+    public_spend_key: new_wallet.pub_spendKey_string,
+    public_view_key: new_wallet.pub_viewKey_string,
+    private_spend_key: new_wallet.sec_spendKey_string,
+    private_view_key: new_wallet.sec_viewKey_string,
   });
 });
 
