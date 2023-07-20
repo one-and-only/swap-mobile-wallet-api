@@ -1,11 +1,15 @@
-import 'dotenv/config';
+import {} from 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
+
 import monero_utils_promise from "./myswap-core-js/monero_utils/MyMoneroCoreBridge.js";
-import monero_amount_format_utils from "./myswap-core-js/monero_utils/monero_amount_format_utils.js"
+import monero_amount_format_utils from "./myswap-core-js/monero_utils/monero_amount_format_utils.js";
+import coreBridge_instance from './myswap-core-js/monero_utils/MyMoneroCoreBridge.js';
+
 import fetch from "node-fetch";
 
 const monero_utils = await monero_utils_promise();
+const core_bridge = await coreBridge_instance();
 
 const app = express();
 
@@ -21,17 +25,15 @@ app.get('/', (req, res) => {
 });
 
 app.get('/create_wallet', (req, res) => {
-  monero_utils_promise.then(monero_utils => {
-    const new_wallet = monero_utils.newly_created_wallet("en", req.query.nettype ? req.query.nettype : 0);
-    res.json({
-      mnemonic: new_wallet.mnemonic_string,
-      wallet_address: new_wallet.address_string,
-      spendKey_pub: new_wallet.pub_spendKey_string,
-      viewKey_pub: new_wallet.pub_viewKey_string,
-      spendKey_sec: new_wallet.sec_spendKey_string,
-      viewKey_sec: new_wallet.sec_viewKey_string,
-    });
-  })
+  const new_wallet = monero_utils.newly_created_wallet("en", req.query.nettype ? req.query.nettype : 0);
+  res.json({
+    mnemonic: new_wallet.mnemonic_string,
+    wallet_address: new_wallet.address_string,
+    spendKey_pub: new_wallet.pub_spendKey_string,
+    viewKey_pub: new_wallet.pub_viewKey_string,
+    spendKey_sec: new_wallet.sec_spendKey_string,
+    viewKey_sec: new_wallet.sec_viewKey_string,
+  });
 });
 
 app.post('/send_funds', (req, res) => {
@@ -101,81 +103,75 @@ app.post('/send_funds', (req, res) => {
   try {
     sending_amount = (monero_amount_format_utils.parseMoney(req.body.sending_amount)).toString();
   } catch (e) {
-    throw new Error(`Couldn't parse amount ${req.body.sending_amount}: ${e}`)
-  }
-  let coreBridge_instance;
-  try {
-    coreBridge_instance = require('./myswap-core-js/monero_utils/MyMoneroCoreBridge')({ asmjs: undefined });
-  } catch (e) {
-    console.error(e);
+    // throw new Error(`Couldn't parse amount ${req.body.sending_amount}: ${e}`);
+    res.status(400).json({
+      error: `Couldn't parse amount ${req.body.sending_amount}: ${e}`,
+      success: false
+    });
     return;
   }
-  coreBridge_instance.then(coreBridge => {
-    coreBridge.async__send_funds({
-      is_sweeping: req.body.is_sweeping,
-      payment_id_string: "", // NOTE: payment IDs are deprecated
-      sending_amount: req.body.is_sweeping ? 0 : sending_amount, // weird, but that's how monero apps do it
-      from_address_string: req.body.from_address_string,
-      sec_viewKey_string: req.body.view_key,
-      sec_spendKey_string: req.body.spendKey_sec,
-      pub_spendKey_string: req.body.spendKey_pub,
-      to_address_string: req.body.to_address_string,
-      priority: 1,
-      unlock_time: 0,
-      nettype: 0,
-      get_unspent_outs_fn: function (req_params, cb) {
-        getUnspentOutputs(req_params, function (err_msg, res) {
-          cb(err_msg, res);
-        });
-      },
-      get_random_outs_fn: function (req_params, cb) {
-        getRandomOutputs(req_params, function (err_msg, res) {
-          cb(err_msg, res);
-        });
-      },
-      submit_raw_tx_fn: function (req_params, cb) {
-        submitRawTransaction(req_params, function (err_msg, res) {
-          cb(err_msg, res);
-        });
-      },
-      status_update_fn: function (params) {
-        //twirling our fingers
-      },
-      error_fn: function (params) {
-        res.status(500).json({
-          success: false,
-          reason: "An unkown error occured while sending XWP",
-          err_msg: params.err_msg
-        });
-      },
-      success_fn: function (params) {
-        const formattedFee = (monero_amount_format_utils.parseMoney(params.used_fee)).toString();
-        res.json({
-          success: true,
-          used_fee: formattedFee,
-          tx_hash: params.tx_hash,
-        });
-      }
-    });
-  });
 
-});
-
-app.post('/login_with_mnemonic', (req, res) => {
-  monero_utils_promise.then(monero_utils => {
-    try {
-      const walletData = monero_utils.seed_and_keys_from_mnemonic(req.body.mnemonic, req.body.nettype);
+  core_bridge.async__send_funds({
+    is_sweeping: req.body.is_sweeping,
+    payment_id_string: "", // NOTE: payment IDs are deprecated
+    sending_amount: req.body.is_sweeping ? 0 : sending_amount, // weird, but that's how monero apps do it
+    from_address_string: req.body.from_address_string,
+    sec_viewKey_string: req.body.view_key,
+    sec_spendKey_string: req.body.spendKey_sec,
+    pub_spendKey_string: req.body.spendKey_pub,
+    to_address_string: req.body.to_address_string,
+    priority: 1,
+    unlock_time: 0,
+    nettype: 0,
+    get_unspent_outs_fn: function (req_params, cb) {
+      getUnspentOutputs(req_params, function (err_msg, res) {
+        cb(err_msg, res);
+      });
+    },
+    get_random_outs_fn: function (req_params, cb) {
+      getRandomOutputs(req_params, function (err_msg, res) {
+        cb(err_msg, res);
+      });
+    },
+    submit_raw_tx_fn: function (req_params, cb) {
+      submitRawTransaction(req_params, function (err_msg, res) {
+        cb(err_msg, res);
+      });
+    },
+    status_update_fn: function (params) {
+      //twirling our fingers
+    },
+    error_fn: function (params) {
+      res.status(500).json({
+        success: false,
+        reason: "An unkown error occured while sending XWP",
+        err_msg: params.err_msg
+      });
+    },
+    success_fn: function (params) {
+      const formattedFee = (monero_amount_format_utils.parseMoney(params.used_fee)).toString();
       res.json({
         success: true,
-        wallet: walletData,
-      })
-    } catch (e) {
-      res.status(400).json({
-        success: false,
-        err_msg: e
+        used_fee: formattedFee,
+        tx_hash: params.tx_hash,
       });
     }
   });
+});
+
+app.post('/login_with_mnemonic', (req, res) => {
+  try {
+    const walletData = monero_utils.seed_and_keys_from_mnemonic(req.body.mnemonic, req.body.nettype);
+    res.json({
+      success: true,
+      wallet: walletData,
+    })
+  } catch (e) {
+    res.status(400).json({
+      success: false,
+      err_msg: e
+    });
+  }
 });
 
 app.post('/restore_from_keys', (req, res) => {
@@ -188,7 +184,7 @@ app.post('/restore_from_keys', (req, res) => {
 
   try {
     const walletData = monero_utils.validate_components_for_login(req.body.address, req.body.private_view_key, req.body.private_spend_key, "", 0);
-  
+
     res.status(200).json({
       public_view_key: walletData.pub_viewKey_string,
       public_spend_key: walletData.pub_spendKey_string,
