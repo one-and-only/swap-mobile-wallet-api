@@ -189,6 +189,35 @@ app.post('/restore_from_mnemonic', (req, res) => {
   }
 });
 
+/**
+ * Validate and restore wallet from private keys
+ * @param {string} address Wallet address being restored from private keys
+ * @param {*} private_view_key Private view key of the wallet being restored
+ * @param {*} private_spend_key Private spend key of the wallet being restored
+ * @returns {{code: number, public_view_key: string?, public_spend_key: string? }} public keys or error details
+ */
+function validate_restore_from_keys(address, private_view_key, private_spend_key) {
+  try {
+    const walletData = monero_utils.validate_components_for_login(address, private_view_key, private_spend_key, "", 0);
+
+    return {
+      code: 0,
+      public_view_key: walletData.pub_viewKey_string,
+      public_spend_key: walletData.pub_spendKey_string,
+    };
+  } catch (e) {
+    if (e.includes("Address doesn't match")) {
+      return {
+        code: 2
+      };
+    } else {
+      return {
+        code: 1
+      };
+    }
+  }
+}
+
 app.post('/restore_from_keys', (req, res) => {
   if (!req.body.address || !req.body.private_view_key || !req.body.private_spend_key) {
     res.status(400).json({
@@ -197,9 +226,14 @@ app.post('/restore_from_keys', (req, res) => {
     return;
   }
 
-  try {
-    const walletData = monero_utils.validate_components_for_login(req.body.address, req.body.private_view_key, req.body.private_spend_key, "", 0);
+  const restore_from_keys_result = validate_restore_from_keys(req.body.address, req.body.private_view_key, req.body.private_spend_key);
 
+  res.status(restore_from_keys_result.code === 1 ? 500 : 200).json({
+    success: restore_from_keys_result.code === 0,
+    public_view_key: restore_from_keys_result.public_view_key ?? undefined,
+    public_spend_key: restore_from_keys_result.public_spend_key ?? undefined
+  });
+});
 
 app.post('/get_send_funds_status', (req, res) => {
   if (!req.body.address || !req.body.private_view_key || !req.body.private_spend_key) {
