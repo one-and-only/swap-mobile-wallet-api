@@ -200,23 +200,38 @@ app.post('/restore_from_keys', (req, res) => {
   try {
     const walletData = monero_utils.validate_components_for_login(req.body.address, req.body.private_view_key, req.body.private_spend_key, "", 0);
 
-    res.status(200).json({
-      public_view_key: walletData.pub_viewKey_string,
-      public_spend_key: walletData.pub_spendKey_string,
-      success: true
+
+app.post('/get_send_funds_status', (req, res) => {
+  if (!req.body.address || !req.body.private_view_key || !req.body.private_spend_key) {
+    res.status(400).json({
+      success: false,
+      error: "One or more required fields not given"
     });
-  } catch (e) {
-    if (e.includes("Address doesn't match")) {
-      res.status(200).json({
-        success: false
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: "Unknown error occurred restoring wallet from private keys"
-      });
-    }
+    return;
   }
+
+  if (validate_restore_from_keys(req.body.address, req.body.private_view_key, req.body.private_spend_key).code !== 0) {
+    res.status(401).send({
+      success: false,
+      error: "Client failed private key authorization"
+    });
+    return;
+  }
+
+  if (!send_funds_statuses[req.body.address]) {
+    res.status(200).json({
+      success: true,
+      error: "No pending sends for given address"
+    });
+    return;
+  }
+
+  const current_status = send_funds_statuses[address];
+  return {
+    send_step_number: current_status.send_step_number,
+    send_step_message: current_status.send_step_message,
+    success: true
+  };
 });
 
 app.listen(process.env.PORT, () =>
