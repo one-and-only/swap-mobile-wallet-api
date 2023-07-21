@@ -205,8 +205,8 @@ app.post('/restore_from_mnemonic', (req, res) => {
 /**
  * Validate and restore wallet from private keys
  * @param {string} address Wallet address being restored from private keys
- * @param {*} private_view_key Private view key of the wallet being restored
- * @param {*} private_spend_key Private spend key of the wallet being restored
+ * @param {string} private_view_key Private view key of the wallet being restored
+ * @param {string} private_spend_key Private spend key of the wallet being restored
  * @returns {{code: number, public_view_key: string?, public_spend_key: string? }} public keys or error details
  */
 function validate_restore_from_keys(address, private_view_key, private_spend_key) {
