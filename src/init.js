@@ -83,6 +83,7 @@ app.post('/send_funds', (req, res) => {
       },
       body: JSON.stringify({ tx_as_hex: parameters.tx })
     }).then(response => response.json().then(jsonResponse => {
+      // TODO: make this work for the Swap JSON-RPC
       switch (jsonResponse) {
         case null:
           fn(null, {});
@@ -101,7 +102,7 @@ app.post('/send_funds', (req, res) => {
 
   let sending_amount;
   try {
-    sending_amount = (monero_amount_format_utils.parseMoney(req.body.amount)).toString();
+    sending_amount = monero_amount_format_utils.parseMoney(req.body.amount).toString();
   } catch (e) {
     res.status(400).json({
       error: `Couldn't parse amount ${req.body.amount}: ${e}`,
@@ -147,7 +148,7 @@ app.post('/send_funds', (req, res) => {
       });
     },
     success_fn: function (params) {
-      const formattedFee = (monero_amount_format_utils.parseMoney(params.used_fee)).toString();
+      const formattedFee = monero_amount_format_utils.parseMoney(params.used_fee).toString();
       res.json({
         success: true,
         used_fee: formattedFee,
