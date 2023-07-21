@@ -6,6 +6,14 @@ import monero_utils_promise from "./myswap-core-js/monero_utils/MyMoneroCoreBrid
 import monero_amount_format_utils from "./myswap-core-js/monero_utils/monero_amount_format_utils.js";
 import coreBridge_instance from './myswap-core-js/monero_utils/MyMoneroCoreBridge.js';
 
+const send_status_message_mapping = {
+  1: "Fetching wallet balance",
+  2: "Calculating fee",
+  3: "Fetching ring members",
+  4: "Building transaction",
+  5: "Submitting transaction"
+};
+
 import fetch from "node-fetch";
 
 const monero_utils = await monero_utils_promise();
@@ -19,6 +27,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.disable('x-powered-by');
 app.disable('etag');
+
+const send_funds_statuses = {};
 
 app.get('/', (req, res) => {
   res.send('This API doesn\'t have a frontend, but at least you\'re here 😄');
@@ -139,7 +149,10 @@ app.post('/send_funds', (req, res) => {
       });
     },
     status_update_fn: function (params) {
-      //twirling our fingers
+      if (!send_funds_statuses[req.body.from_address]) send_funds_statuses[req.body.from_address] = {};
+
+      send_funds_statuses[req.body.from_address].send_step_number = params.code;
+      send_funds_statuses[req.body.from_address].send_step_message = send_status_message_mapping[params.code];
     },
     error_fn: function (params) {
       res.status(500).json({
