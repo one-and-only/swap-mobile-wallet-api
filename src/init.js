@@ -38,7 +38,7 @@ app.get('/create_wallet', (req, res) => {
   const new_wallet = monero_utils.newly_created_wallet("en", 0);
   res.json({
     mnemonic: new_wallet.mnemonic_string,
-    wallet_address: new_wallet.address_string,
+    address: new_wallet.address_string,
     public_spend_key: new_wallet.pub_spendKey_string,
     public_view_key: new_wallet.pub_viewKey_string,
     private_spend_key: new_wallet.sec_spendKey_string,
