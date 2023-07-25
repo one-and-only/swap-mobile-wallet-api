@@ -6,6 +6,8 @@ import monero_utils_promise from "./myswap-core-js/monero_utils/MyMoneroCoreBrid
 import monero_amount_format_utils from "./myswap-core-js/monero_utils/monero_amount_format_utils.js";
 import coreBridge_instance from './myswap-core-js/monero_utils/MyMoneroCoreBridge.js';
 
+import get_random_outputs from "./utils/generate-random-outs.js";
+
 const send_status_message_mapping = {
   1: "Fetching wallet balance",
   2: "Calculating fee",
@@ -68,16 +70,9 @@ app.post('/send_funds', (req, res) => {
   }
 
   function getRandomOutputs(parameters, fn) {
-    const body = '{"amounts": ["0"],"count": 11}';
-    fetch('https://wallet.getswap.eu/api/get_random_outs', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: body
-    }).then(response => response.json().then(jsonResponse => {
-      fn(null, { amount_outs: jsonResponse.amount_outs })
-    })).catch(err => fn(err && err.Error ? err.Error : "" + err));
+    get_random_outputs(req.body.private_view_key).then(random_outpus => {
+      fn(null, { amount_outs: random_outpus.amount_outs })
+    }).catch(err => fn(err && err.Error ? err.Error : "" + err));
     return {
       abort: function () {
         console.warn("TODO: abort!")
