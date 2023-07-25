@@ -4,41 +4,6 @@ import sodium from "libsodium-wrappers-sumo";
 
 await sodium.ready;
 
-function encode_amount(xwp_amount, amount_in_swapini = false) {
-    const amount_string = xwp_amount.toString();
-
-    let amountInAtomicUnits;
-    if (amount_in_swapini) {
-        amountInAtomicUnits = xwp_amount.toString();
-    } else {
-        if (!amount_string.includes(".")) {
-            amountInAtomicUnits = amount_string !== 0 ? amount_string + "0".repeat(12) : "0"; // multiply by 1e12
-        } else {
-            const string_split = amount_string.split(".");
-            const left_of_decimal = string_split[0];
-            const right_of_decimal = string_split[1];
-
-            amountInAtomicUnits = left_of_decimal + right_of_decimal + "0".repeat(12 - right_of_decimal.length);
-        }
-    }
-
-    let amount = BigInt(amountInAtomicUnits);
-
-    // Monero's variable-length integer encoding
-    let buffer = [];
-    do {
-        let b = Number(amount % BigInt(128));
-        amount = amount / BigInt(128);
-        if (amount > 0n) {
-            b |= 0x80;
-        }
-        buffer.push(b);
-    } while (amount > 0n);
-
-    const converted_amount = buffer.map((byte) => byte.toString(16).padStart(2, '0')).join('');
-    return converted_amount.padStart(64, "0");
-}
-
 function generate_ecdh_mask(output_public_key, private_view_key) {
     // Decode the private and public keys from hexadecimal strings
     const private_key_bytes = sodium.from_hex(private_view_key);
@@ -55,12 +20,7 @@ function generate_ecdh_mask(output_public_key, private_view_key) {
 
 function generate_rct_field(output, private_view_key) {
     const mask = generate_ecdh_mask(output.key, private_view_key);
-    let raw_amount = 0;
-    if (output.cb_tx) {
-
-    }
-    const amount = encode_amount(0);
-    return `${output.key}${mask}${amount}`;
+    return `${output.key}${mask}${"0".repeat(64)}`;
 }
 
 // tbh I have no idea what I'm doing here
