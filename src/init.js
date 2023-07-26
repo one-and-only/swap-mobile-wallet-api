@@ -154,6 +154,9 @@ app.post('/send_funds', (req, res) => {
         success: false,
         error: `An unkown error occured while sending XWP: ${params.err_msg}`,
       });
+
+      // transfer has been completed and is no longer pending
+      delete send_funds_statuses[req.body.from_address];
     },
     success_fn: function (params) {
       const formattedFee = monero_amount_format_utils.parseMoney(params.used_fee).toString();
@@ -162,6 +165,9 @@ app.post('/send_funds', (req, res) => {
         used_fee: formattedFee,
         tx_hash: params.tx_hash,
       });
+
+      // transfer has been completed and is no longer pending
+      delete send_funds_statuses[req.body.from_address];
     }
   });
 });
