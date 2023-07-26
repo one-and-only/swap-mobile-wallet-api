@@ -3,8 +3,8 @@ import cors from 'cors';
 import express from 'express';
 
 import monero_utils_promise from "./myswap-core-js/monero_utils/MyMoneroCoreBridge.js";
-import monero_amount_format_utils from "./myswap-core-js/monero_utils/monero_amount_format_utils.js";
 import coreBridge_instance from './myswap-core-js/monero_utils/MyMoneroCoreBridge.js';
+import monero_amount_format_utils from "./myswap-core-js/node_modules/@mymonero/mymonero-money-format/index.js";
 
 import get_random_outputs from "./utils/generate-random-outs.js";
 
