@@ -17,7 +17,19 @@ import process_block, { block_count } from './utils/scan.js';
 import get_random_outputs from "./utils/generate-random-outs.js";
 
 const sleep = promisify(setTimeout);
-var express_server;
+
+let express_server;
+const send_funds_statuses = {};
+const wallet_scan_progresses = {};
+
+function collect_garbage() {
+  try {
+    if (global.gc) global.gc();
+    console.log("Garbage collected");
+  } catch (e) {
+    console.warn("Garbage collection not allowed. Are you using `--expose-gc`?");
+  }
+}
 
 async function sigint_hook() {
   api_shutting_down = true;
@@ -33,11 +45,11 @@ async function sigint_hook() {
   await wallet_scan_worker.close();
   await wallet_scan_queue.close();
   await redis.quit();
-  console.log(kleur.bgWhite().green("Goodbye!"));
+  console.log(`\n${kleur.bgWhite().green("Goodbye!")}`);
 }
 
 if (process.platform === "win32") {
-  var rl = rl_create_interface({
+  const rl = rl_create_interface({
     input: process.stdin,
     output: process.stdout
   });
@@ -115,7 +127,6 @@ const wallet_scan_worker = new Worker("Wallet Scan", async job => {
     switch (job.data.function) {
       case "block_height":
         await block_height_update_function(job);
-        console.log(process.env.CURRENT_BLOCKCHAIN_HEIGHT);
         break;
       case "wallet_process":
         //! doing a "const _" in case there may be some data that I want to use, not sure yet
@@ -137,6 +148,8 @@ wallet_scan_queue.add("Chain Height Update Thread", { function: "block_height" }
   priority: block_update_thread_priority, // usually this would be the highest priority, but you can set the priority you want in process.env
 });
 
+
+// TODO standardize API error responses
 const app = express();
 
 app.use(cors());
@@ -154,8 +167,6 @@ const monitor = new BullMonitorExpress({
 });
 await monitor.init();
 app.use('/queue_info', monitor.router);
-
-const send_funds_statuses = {};
 
 app.get('/', (req, res) => {
   res.send('This API doesn\'t have a frontend, but at least you\'re here 😄');
@@ -405,6 +416,33 @@ app.post('/get_send_funds_status', (req, res) => {
     send_step_message: current_status.send_step_message,
     success: true
   };
+});
+
+// NOTE cleared from error standardization
+app.post('/get_wallet_restore_status', (req, res) => {
+  if (!req.body.address || !req.body.private_view_key || !req.body.private_spend_key) {
+    res.status(400).json({
+      success: false,
+      error: "Missing wallet credentials"
+    });
+    return;
+  }
+
+  // this specifically doesn't need encryption because the data can't be accessed outside this memory space
+  if (!wallet_scan_progresses[req.body.address]) {
+    res.status(400).json({
+      success: false,
+      error: "No pending wallet scan for this address"
+    });
+    return;
+  }
+
+  const wallet_status = wallet_scan_progresses[req.body.address];
+  res.json({
+    scanned_blocks: wallet_status.scanned_blocks,
+    chain_height: process.env.CURRENT_BLOCKCHAIN_HEIGHT,
+    bundle_available: wallet_status.bundle_available
+  });
 });
 
 express_server = app.listen(process.env.PORT, () =>
