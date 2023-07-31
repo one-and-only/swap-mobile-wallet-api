@@ -20,12 +20,11 @@ const sleep = promisify(setTimeout);
 
 let express_server;
 const send_funds_statuses = {};
-const wallet_scan_progresses = {};
+const wallet_scan_statuses = {};
 
 function collect_garbage() {
   try {
-    if (global.gc) global.gc();
-    console.log("Garbage collected");
+    global.gc();
   } catch (e) {
     console.warn("Garbage collection not allowed. Are you using `--expose-gc`?");
   }
@@ -48,6 +47,7 @@ async function sigint_hook() {
   console.log(`\n${kleur.bgWhite().green("Goodbye!")}`);
 }
 
+// https://stackoverflow.com/a/14861513
 if (process.platform === "win32") {
   const rl = rl_create_interface({
     input: process.stdin,
@@ -98,11 +98,10 @@ async function wallet_process_function(job) {
   let current_height = await block_count();
   let scanned_height = from_height - 1;
   const transactions = [];
-  // TODO change keys.* to data from the job
-  const user_key_image = core_bridge.generate_key_image(keys.public_view, keys.private_view, keys.public_spend, keys.private_spend, 0);
+  const user_key_image = core_bridge.generate_key_image(job.data.keys.public_view, job.data.keys.private_view, job.data.keys.public_spend, job.data.keys.private_spend, 0);
 
   while (scanned_height < current_height) {
-    const block_scan_result = await process_block(scanned_height + 1, keys, user_key_image, swap_core_bridge);
+    const block_scan_result = await process_block(scanned_height + 1, job.data.keys, user_key_image, core_bridge);
 
     if (block_scan_result.success) {
       transactions.push(block_scan_result.transactions);
@@ -111,6 +110,10 @@ async function wallet_process_function(job) {
     scanned_height++;
     current_height = await block_count();
   }
+
+  collect_garbage();
+
+  // TODO: encrypt and store transaction bundle
 }
 
 async function block_height_update_function(job) {
@@ -418,18 +421,51 @@ app.post('/get_send_funds_status', (req, res) => {
   };
 });
 
-// NOTE cleared from error standardization
+// NOTE: cleared from error standardization
+app.post('/initiate_tx_scan', (req, res) => {
+  if (!req.body.address || !req.body.public_view_key || !req.body.public_spend_key || !req.body.private_view_key || !req.body.private_spend_key) {
+    res.status(400).json({
+      success: false,
+      error: "One or more fields missing"
+    });
+    return;
+  }
+
+  if (wallet_scan_statuses[req.body.address]) {
+    res.json({
+      success: false,
+      error: "Wallet scan already in progress for this wallet address"
+    });
+    return;
+  }
+
+  wallet_scan_queue.add("Wallet Scan Thread",
+    {
+      function: "wallet_process",
+      address: req.body.address,
+      keys: {
+        public_view: req.body.public_view_key,
+        public_spend: req.body.public_spend_key,
+        private_view: req.body.private_view_key,
+        private_spend: req.body.private_spend_key
+      }
+    }, {
+    priority: wallet_scan_thread_priority
+  });
+});
+
+// NOTE: cleared from error standardization
 app.post('/get_wallet_restore_status', (req, res) => {
   if (!req.body.address || !req.body.private_view_key || !req.body.private_spend_key) {
     res.status(400).json({
       success: false,
-      error: "Missing wallet credentials"
+      error: "One or more fields missing"
     });
     return;
   }
 
   // this specifically doesn't need encryption because the data can't be accessed outside this memory space
-  if (!wallet_scan_progresses[req.body.address]) {
+  if (!wallet_scan_statuses[req.body.address]) {
     res.status(400).json({
       success: false,
       error: "No pending wallet scan for this address"
@@ -437,13 +473,15 @@ app.post('/get_wallet_restore_status', (req, res) => {
     return;
   }
 
-  const wallet_status = wallet_scan_progresses[req.body.address];
+  const wallet_status = wallet_scan_statuses[req.body.address];
   res.json({
     scanned_blocks: wallet_status.scanned_blocks,
     chain_height: process.env.CURRENT_BLOCKCHAIN_HEIGHT,
     bundle_available: wallet_status.bundle_available
   });
 });
+
+// TODO: add endpoint that gets encrypted transcation bundle
 
 express_server = app.listen(process.env.PORT, () =>
   console.log(`Mobile Wallet API listening on port ${process.env.PORT}!`),
