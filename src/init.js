@@ -1,12 +1,57 @@
 import { } from 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
+import { Queue, Worker } from 'bullmq';
+import IORedis from 'ioredis';
+import { BullMonitorExpress } from '@bull-monitor/express';
+import { BullMQAdapter } from "@bull-monitor/root/dist/bullmq-adapter.js";
+import { promisify } from "node:util";
+import kleur from 'kleur';
+import { createInterface as rl_create_interface } from 'node:readline';
 
 import monero_utils_promise from "./myswap-core-js/monero_utils/MyMoneroCoreBridge.js";
 import coreBridge_instance from './myswap-core-js/monero_utils/MyMoneroCoreBridge.js';
 import monero_amount_format_utils from "./myswap-core-js/node_modules/@mymonero/mymonero-money-format/index.js";
 
+import process_block, { block_count } from './utils/scan.js';
 import get_random_outputs from "./utils/generate-random-outs.js";
+
+const sleep = promisify(setTimeout);
+var express_server;
+
+async function sigint_hook() {
+  api_shutting_down = true;
+
+  let jobs_remaining = (await wallet_scan_queue.getJobs("active")).length;
+  while (jobs_remaining > 0) {
+    console.log(kleur.white().bgBlue(`Waiting for ${jobs_remaining} job${jobs_remaining > 1 ? "s" : ""} to finish...`));
+    await sleep(1000);
+    jobs_remaining = (await wallet_scan_queue.getJobs("active")).length;
+  }
+
+  express_server.close();
+  await wallet_scan_worker.close();
+  await wallet_scan_queue.close();
+  await redis.quit();
+  console.log(kleur.bgWhite().green("Goodbye!"));
+}
+
+if (process.platform === "win32") {
+  var rl = rl_create_interface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  rl.on("SIGINT", async () => {
+    await sigint_hook();
+    process.emit("SIGINT");
+  });
+}
+
+process.on('SIGINT', async () => {
+  await sigint_hook();
+  process.exit();
+});
 
 const send_status_message_mapping = {
   1: "Fetching wallet balance",
@@ -18,8 +63,79 @@ const send_status_message_mapping = {
 
 import fetch from "node-fetch";
 
+let api_shutting_down = false;
+
 const monero_utils = await monero_utils_promise();
 const core_bridge = await coreBridge_instance();
+
+const block_update_thread_priority = parseInt(process.env.BLOCK_COUNT_UPDATE_JOB_QUEUE_PRIORITY);
+const wallet_scan_thread_priority = parseInt(process.env.WALLET_SCAN_JOB_QUEUE_PRIORITY);
+const chain_height_update_interval_sec = parseInt(process.env.CHAIN_HEIGHT_UPDATE_INTERVAL_SEC);
+
+const redis = new IORedis({
+  host: "localhost",
+  port: 6379,
+  maxRetriesPerRequest: null
+});
+
+const wallet_scan_queue = new Queue("Wallet Scan", {
+  connection: redis
+});
+
+async function wallet_process_function(job) {
+  let current_height = await block_count();
+  let scanned_height = from_height - 1;
+  const transactions = [];
+  // TODO change keys.* to data from the job
+  const user_key_image = core_bridge.generate_key_image(keys.public_view, keys.private_view, keys.public_spend, keys.private_spend, 0);
+
+  while (scanned_height < current_height) {
+    const block_scan_result = await process_block(scanned_height + 1, keys, user_key_image, swap_core_bridge);
+
+    if (block_scan_result.success) {
+      transactions.push(block_scan_result.transactions);
+    }
+
+    scanned_height++;
+    current_height = await block_count();
+  }
+}
+
+async function block_height_update_function(job) {
+  try {
+    process.env.CURRENT_BLOCKCHAIN_HEIGHT = await block_count();
+  } catch (e) {
+    console.error(`Failed to update blockchain height: ${e}`);
+    job.moveToFailed();
+  }
+}
+
+const wallet_scan_worker = new Worker("Wallet Scan", async job => {
+  while (!api_shutting_down) {
+    switch (job.data.function) {
+      case "block_height":
+        await block_height_update_function(job);
+        console.log(process.env.CURRENT_BLOCKCHAIN_HEIGHT);
+        break;
+      case "wallet_process":
+        //! doing a "const _" in case there may be some data that I want to use, not sure yet
+        const _ = await wallet_process_function(job);
+        break;
+      default:
+        console.error("Invalid function name");
+    }
+
+    if (job.data.function === "block_height") {
+      await sleep(chain_height_update_interval_sec * 1000);
+    }
+  }
+}, {
+  connection: redis
+});
+
+wallet_scan_queue.add("Chain Height Update Thread", { function: "block_height" }, {
+  priority: block_update_thread_priority, // usually this would be the highest priority, but you can set the priority you want in process.env
+});
 
 const app = express();
 
@@ -29,6 +145,15 @@ app.use(express.urlencoded({ extended: true }));
 
 app.disable('x-powered-by');
 app.disable('etag');
+
+const monitor = new BullMonitorExpress({
+  queues: [
+    new BullMQAdapter(wallet_scan_queue, { readonly: true }),
+  ],
+  gqlIntrospection: false
+});
+await monitor.init();
+app.use('/queue_info', monitor.router);
 
 const send_funds_statuses = {};
 
@@ -282,6 +407,6 @@ app.post('/get_send_funds_status', (req, res) => {
   };
 });
 
-app.listen(process.env.PORT, () =>
+express_server = app.listen(process.env.PORT, () =>
   console.log(`Mobile Wallet API listening on port ${process.env.PORT}!`),
 );
