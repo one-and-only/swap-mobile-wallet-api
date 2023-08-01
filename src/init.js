@@ -85,8 +85,8 @@ const wallet_scan_thread_priority = parseInt(process.env.WALLET_SCAN_JOB_QUEUE_P
 const chain_height_update_interval_sec = parseInt(process.env.CHAIN_HEIGHT_UPDATE_INTERVAL_SEC);
 
 const redis = new IORedis({
-  host: "localhost",
-  port: 6379,
+  host: process.env.BULLMQ_REDIS_HOST,
+  port: parseInt(process.env.BULLMQ_REDIS_PORT),
   maxRetriesPerRequest: null
 });
 
