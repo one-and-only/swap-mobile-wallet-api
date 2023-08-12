@@ -60,7 +60,7 @@ async function parse_transaction(tx, keys, user_key_image, swap_core_bridge) {
  * @param {MyMoneroCoreBridgeClass} swap_core_bridge MyMonero-based crypto function helper
  * @returns {Promise<{ transactions: { hash: string, timestamp: number, height: number, amount: number, tx_version: number, size_bytes: number, ringct: string, to_address: string, from_address: string }, success: boolean }>} Transaction information in requested block
  */
-export default async function process_block(height, keys, user_key_image, swap_core_bridge) {
+export async function process_block(height, keys, user_key_image, swap_core_bridge) {
     const transactions_result = [];
     const tx_hashes = [];
 

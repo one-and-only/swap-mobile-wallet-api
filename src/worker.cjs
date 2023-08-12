@@ -1,6 +1,5 @@
 const IORedis = require('ioredis');
-const node_util = require('node:util');
-const sleep = node_util.promisify(setTimeout);
+const sleep = require('node:util').promisify(setTimeout);
 
 const chain_height_update_interval_sec = parseInt(process.env.CHAIN_HEIGHT_UPDATE_INTERVAL_SEC);
 
@@ -19,7 +18,7 @@ function collect_garbage() {
 }
 
 module.exports = async (job) => {
-    const utils = await import('./utils/scan.js'); // default export is process_block, use utils.default for it
+    const chain_scan_utils = await import('./utils/scan.js');
     const core_bridge = await require('./myswap-core-js/monero_utils/MyMoneroCoreBridge.js')();
 
     async function wallet_process_function(job) {
@@ -33,7 +32,7 @@ module.exports = async (job) => {
                 return;
             }
 
-            const block_scan_result = await utils.default(scanned_height + 1, job.data.keys, user_key_image, core_bridge);
+            const block_scan_result = await chain_scan_utils.process_block(scanned_height + 1, job.data.keys, user_key_image, core_bridge);
 
             if (block_scan_result.success) {
                 transactions.push(block_scan_result.transactions);
@@ -49,7 +48,7 @@ module.exports = async (job) => {
 
     async function block_height_update_function(job) {
         try {
-            global.CURRENT_BLOCKCHAIN_HEIGHT = await utils.block_count();
+            global.CURRENT_BLOCKCHAIN_HEIGHT = await chain_scan_utils.block_count();
         } catch (e) {
             console.error(`Failed to update blockchain height: ${e}`);
         }
@@ -61,8 +60,7 @@ module.exports = async (job) => {
                 await block_height_update_function(job);
                 break;
             case "wallet_process":
-                //! doing a "const _" in case there may be some data that I want to use, not sure yet
-                const _ = await wallet_process_function(job);
+                await wallet_process_function(job);
                 break;
             default:
                 console.error("Invalid function name");
