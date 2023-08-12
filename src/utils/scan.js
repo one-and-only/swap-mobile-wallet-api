@@ -79,12 +79,12 @@ export default async function process_block(height, keys, user_key_image, swap_c
     })).json();
     const info_json = JSON.parse(block_info.result.json);
 
-    tx_hashes.push(...(info_json.tx_hashes), block_info.result.block_header.miner_tx_hash);
+    info_json.tx_hashes.push(block_info.result.block_header.miner_tx_hash);
 
     const transaction_infos = await (await fetch(`${process.env.SWAP_RPC_ENDPOINT}/get_transactions`, {
         method: "POST",
         body: JSON.stringify({
-            txs_hashes: [...(info_json.tx_hashes), ...(tx_hashes)],
+            txs_hashes: info_json.tx_hashes,
             decode_as_json: true
         })
     })).json();

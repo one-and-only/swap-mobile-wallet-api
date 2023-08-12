@@ -8,30 +8,34 @@ import { BullMQAdapter } from "@bull-monitor/root/dist/bullmq-adapter.js";
 import { promisify } from "node:util";
 import kleur from 'kleur';
 import { createInterface as rl_create_interface } from 'node:readline';
+import fetch from "node-fetch";
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+// import { encrypt as aes_encrypt, decrypt as aes_decrypt } from 'aes256';
+// import { createHash } from 'node:crypto';
 
 import monero_utils_promise from "./myswap-core-js/monero_utils/MyMoneroCoreBridge.js";
 import coreBridge_instance from './myswap-core-js/monero_utils/MyMoneroCoreBridge.js';
 import monero_amount_format_utils from "./myswap-core-js/node_modules/@mymonero/mymonero-money-format/index.js";
 
-import process_block, { block_count } from './utils/scan.js';
 import get_random_outputs from "./utils/generate-random-outs.js";
 
 const sleep = promisify(setTimeout);
 
 let express_server;
 const send_funds_statuses = {};
-const wallet_scan_statuses = {};
+const wallet_scan_statuses = {}; // TODO deprecate
 
-function collect_garbage() {
-  try {
-    global.gc();
-  } catch (e) {
-    console.warn("Garbage collection not allowed. Are you using `--expose-gc`?");
-  }
-}
+const redis = new IORedis({
+  host: process.env.BULLMQ_REDIS_HOST,
+  port: parseInt(process.env.BULLMQ_REDIS_PORT),
+  maxRetriesPerRequest: null
+});
+
+await redis.set("api_shutting_down", "false");
 
 async function sigint_hook() {
-  api_shutting_down = true;
+  await redis.set("api_shutting_down", "true");
 
   let jobs_remaining = (await wallet_scan_queue.getJobs("active")).length;
   while (jobs_remaining > 0) {
@@ -73,84 +77,22 @@ const send_status_message_mapping = {
   5: "Submitting transaction"
 };
 
-import fetch from "node-fetch";
-
-let api_shutting_down = false;
-
 const monero_utils = await monero_utils_promise();
 const core_bridge = await coreBridge_instance();
 
 const block_update_thread_priority = parseInt(process.env.BLOCK_COUNT_UPDATE_JOB_QUEUE_PRIORITY);
 const wallet_scan_thread_priority = parseInt(process.env.WALLET_SCAN_JOB_QUEUE_PRIORITY);
-const chain_height_update_interval_sec = parseInt(process.env.CHAIN_HEIGHT_UPDATE_INTERVAL_SEC);
-
-const redis = new IORedis({
-  host: process.env.BULLMQ_REDIS_HOST,
-  port: parseInt(process.env.BULLMQ_REDIS_PORT),
-  maxRetriesPerRequest: null
-});
 
 const wallet_scan_queue = new Queue("Wallet Scan", {
   connection: redis
 });
 
-async function wallet_process_function(job) {
-  let current_height = await block_count();
-  let scanned_height = from_height - 1;
-  const transactions = [];
-  const user_key_image = core_bridge.generate_key_image(job.data.keys.public_view, job.data.keys.private_view, job.data.keys.public_spend, job.data.keys.private_spend, 0);
-
-  while (scanned_height < current_height) {
-    const block_scan_result = await process_block(scanned_height + 1, job.data.keys, user_key_image, core_bridge);
-
-    if (block_scan_result.success) {
-      transactions.push(block_scan_result.transactions);
-    }
-
-    scanned_height++;
-    current_height = await block_count();
-  }
-
-  collect_garbage();
-
-  // TODO: encrypt and store transaction bundle
-}
-
-async function block_height_update_function(job) {
-  try {
-    process.env.CURRENT_BLOCKCHAIN_HEIGHT = await block_count();
-  } catch (e) {
-    console.error(`Failed to update blockchain height: ${e}`);
-    job.moveToFailed();
-  }
-}
-
-const wallet_scan_worker = new Worker("Wallet Scan", async job => {
-  while (!api_shutting_down) {
-    switch (job.data.function) {
-      case "block_height":
-        await block_height_update_function(job);
-        break;
-      case "wallet_process":
-        //! doing a "const _" in case there may be some data that I want to use, not sure yet
-        const _ = await wallet_process_function(job);
-        break;
-      default:
-        console.error("Invalid function name");
-    }
-
-    if (job.data.function === "block_height") {
-      await sleep(chain_height_update_interval_sec * 1000);
-    }
-  }
-}, {
-  connection: redis
-});
+const processor_file = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker.cjs");
+const wallet_scan_worker = new Worker("Wallet Scan", processor_file, { connection: redis });
 
 wallet_scan_queue.add("Chain Height Update Thread", { function: "block_height" }, {
   priority: block_update_thread_priority, // usually this would be the highest priority, but you can set the priority you want in process.env
 });
-
 
 // TODO standardize API error responses
 const app = express();
@@ -431,6 +373,7 @@ app.post('/initiate_tx_scan', (req, res) => {
     return;
   }
 
+  // TODO update to check Redis instead of object
   if (wallet_scan_statuses[req.body.address]) {
     res.json({
       success: false,
@@ -464,7 +407,7 @@ app.post('/get_wallet_restore_status', (req, res) => {
     return;
   }
 
-  // this specifically doesn't need encryption because the data can't be accessed outside this memory space
+  // TODO update to check Redis instead of object
   if (!wallet_scan_statuses[req.body.address]) {
     res.status(400).json({
       success: false,
@@ -473,6 +416,7 @@ app.post('/get_wallet_restore_status', (req, res) => {
     return;
   }
 
+  // TODO update to check Redis instead of object
   const wallet_status = wallet_scan_statuses[req.body.address];
   res.json({
     scanned_blocks: wallet_status.scanned_blocks,
