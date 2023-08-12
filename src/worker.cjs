@@ -22,11 +22,11 @@ module.exports = async (job) => {
     const core_bridge = await require('./myswap-core-js/monero_utils/MyMoneroCoreBridge.js')();
 
     async function wallet_process_function(job) {
-        let scanned_height = job.data.from_height - 1;
+        const wallet_scan_status = JSON.parse(await redis.get(`wallet_scan_status|${job.data.address_hash}`));
         let transactions = [];
         const user_key_image = core_bridge.generate_key_image(job.data.keys.public_view, job.data.keys.private_view, job.data.keys.public_spend, job.data.keys.private_spend, 0);
 
-        while (scanned_height < global.CURRENT_BLOCKCHAIN_HEIGHT) {
+        while (wallet_scan_status.scanned_height < global.CURRENT_BLOCKCHAIN_HEIGHT) {
             // since this is a long-running job, we need to check if the API wants to shut down and quit
             if ((await redis.get("api_shutting_down")) === "true") {
                 return;
@@ -38,12 +38,16 @@ module.exports = async (job) => {
                 transactions.push(block_scan_result.transactions);
             }
 
-            scanned_height++;
+            wallet_scan_status.scanned_height++;
+            await redis.set(`wallet_scan_status|${job.data.address_hash}`, JSON.stringify(wallet_scan_status));
         }
 
         // TODO: encrypt and store transaction bundle
 
         transactions = [];
+        wallet_scan_status.scanned_fully = true;
+        wallet_scan_status.bundle_available = true;
+        await redis.set(`wallet_scan_status|${job.data.address_hash}`, JSON.stringify(wallet_scan_status));
     }
 
     async function block_height_update_function(job) {

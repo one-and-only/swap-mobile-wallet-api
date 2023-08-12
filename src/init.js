@@ -12,7 +12,7 @@ import fetch from "node-fetch";
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 // import { encrypt as aes_encrypt, decrypt as aes_decrypt } from 'aes256';
-// import { createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import monero_utils_promise from "./myswap-core-js/monero_utils/MyMoneroCoreBridge.js";
 import coreBridge_instance from './myswap-core-js/monero_utils/MyMoneroCoreBridge.js';
@@ -24,7 +24,6 @@ const sleep = promisify(setTimeout);
 
 let express_server;
 const send_funds_statuses = {};
-const wallet_scan_statuses = {}; // TODO deprecate
 
 const redis = new IORedis({
   host: process.env.BULLMQ_REDIS_HOST,
@@ -364,8 +363,8 @@ app.post('/get_send_funds_status', (req, res) => {
 });
 
 // NOTE: cleared from error standardization
-app.post('/initiate_tx_scan', (req, res) => {
-  if (!req.body.address || !req.body.public_view_key || !req.body.public_spend_key || !req.body.private_view_key || !req.body.private_spend_key) {
+app.post('/initiate_tx_scan', async (req, res) => {
+  if (!req.body.from_height || !req.body.address || !req.body.public_view_key || !req.body.public_spend_key || !req.body.private_view_key || !req.body.private_spend_key) {
     res.status(400).json({
       success: false,
       error: "One or more fields missing"
@@ -373,8 +372,10 @@ app.post('/initiate_tx_scan', (req, res) => {
     return;
   }
 
-  // TODO update to check Redis instead of object
-  if (wallet_scan_statuses[req.body.address]) {
+  const address_hash = createHash("sha512").update(req.body.address).digest("hex");
+  const wallet_scan_status = await redis.get(`wallet_scan_status|${address_hash}`);
+
+  if (wallet_scan_status) {
     res.json({
       success: false,
       error: "Wallet scan already in progress for this wallet address"
@@ -382,10 +383,17 @@ app.post('/initiate_tx_scan', (req, res) => {
     return;
   }
 
+  await redis.set(`wallet_scan_status|${address_hash}`, JSON.stringify({
+    scanned_height: req.body.from_height,
+    scanned_fully: false,
+    bundle_available: false
+  }));
+
   wallet_scan_queue.add("Wallet Scan Thread",
     {
       function: "wallet_process",
       address: req.body.address,
+      address_hash: address_hash,
       keys: {
         public_view: req.body.public_view_key,
         public_spend: req.body.public_spend_key,
@@ -398,7 +406,7 @@ app.post('/initiate_tx_scan', (req, res) => {
 });
 
 // NOTE: cleared from error standardization
-app.post('/get_wallet_restore_status', (req, res) => {
+app.post('/get_wallet_restore_status', async (req, res) => {
   if (!req.body.address || !req.body.private_view_key || !req.body.private_spend_key) {
     res.status(400).json({
       success: false,
@@ -407,8 +415,9 @@ app.post('/get_wallet_restore_status', (req, res) => {
     return;
   }
 
-  // TODO update to check Redis instead of object
-  if (!wallet_scan_statuses[req.body.address]) {
+  const wallet_scan_status = await redis.get(`wallet_scan_status|${createHash("sha512").update(req.body.address).digest("hex")}`);
+
+  if (!wallet_scan_status) {
     res.status(400).json({
       success: false,
       error: "No pending wallet scan for this address"
@@ -416,12 +425,11 @@ app.post('/get_wallet_restore_status', (req, res) => {
     return;
   }
 
-  // TODO update to check Redis instead of object
-  const wallet_status = wallet_scan_statuses[req.body.address];
   res.json({
-    scanned_blocks: wallet_status.scanned_blocks,
+    scanned_blocks: wallet_status.scanned_height,
     chain_height: process.env.CURRENT_BLOCKCHAIN_HEIGHT,
-    bundle_available: wallet_status.bundle_available
+    bundle_available: wallet_status.bundle_available,
+    success: true
   });
 });
 
